@@ -1,39 +1,48 @@
-## ARDS (Adaptive Rate-Distortion Scaling): A framework for dynamic control of attention channel capacity.
+## ARDS (Adaptive Rate-Distortion Scaling): A Framework for Dynamic Control of Attention Channel Capacity
 
-**Top-Level Goal: A Framework for Intelligence as Learned Compression**
+**Top-Level Goal: Intelligence as Learned, Adaptive Compression**
 
-This system implements a framework for transformer control based on this concept: intelligence in these models is not learned representation, but **learned compression**. High-level reasoning emerges from the model's ability to learn and dynamically apply optimal, task-dependent strategies for the lossy compression of context.
+This system implements a framework for transformer control based on a core concept: high-level
+reasoning is not just learned representation, but **learned, adaptive compression**. The model's
+intelligence emerges from its ability to dynamically apply optimal, context-dependent strategies
+for the lossy compression of information.
 
-**The Core Realization: Attention as an Adaptive Compression Engine**
+**The Core Realization: Attention as a Variable-Rate Compression Channel**
 
-The computational locus of reasoning in a transformer is the pre-softmax attention score matrix (`Q·K^T`). The subsequent softmax function acts as a non-linear compression algorithm, creating a focused probability distribution that selectively routes information. The core approach of this framework is that the *aggressiveness* of this compression should be a learned, context-dependent variable, not a static architectural property.
+The computational locus of reasoning is the pre-softmax attention score matrix. The subsequent
+softmax function acts as a non-linear compression algorithm, selectively routing information.
+The central thesis of ARDS is that the *aggressiveness* of this compression should not be a
+static architectural property, but a learned, dynamic variable.
 
-**Genuine Control: Modulating Information Density for Optimal Compression**
+**Genuine Control: Unbounded, Multiplicative Scaling of Information Density**
 
-This system intervenes by modulating the **information density** of the attention distribution. Multiplying the pre-softmax scores by a learned `info_density` parameter (`softmax(scores * info_density)`) directly controls the compression ratio of the attention head. This is a form of **adaptive gain control** on the attention logits.
+This system intervenes by multiplying the pre-softmax scores by a learned `info_density`
+parameter. This directly and powerfully controls the compression ratio of the attention head.
+The control mechanism is designed to be as simple and unconstrained as possible:
 
-This mechanism treats each attention head as a **variable-rate compression channel**, governed by the principles of Rate-Distortion theory:
+- **Multiplicative Scaling:** The controller learns a scaling factor that multiplies the
+  raw attention scores.
+- **Neutral Baseline of 1.0:** The controller learns a value in log-space (`log_density`).
+  This is converted to a scaler via `exp(log_density)`, making `1.0` the natural,
+  "do-nothing" baseline. A learned output of `0` results in a scaler of `1.0`.
+- **Unbounded Control:** There are no artificial hyperparameters like `min/max` ranges or `gain`
+  factors. The controller has full authority to set any positive scaling factor. We trust the
+  main training loop (e.g., through weight decay and gradient clipping) to provide emergent
+  regularization, forcing the controller to learn sensible policies that improve performance.
 
--   **High Information Density (Aggressive Compression):** A high `info_density` value forces a low-entropy distribution. This creates a **high-distortion, low-rate channel** that aggressively compresses the context, preserving only the most salient signals. This is essential for logical deduction and syntax parsing, where noise must be filtered.
+This approach treats each attention head as a variable-rate compression channel, where the
+`info_density` scaler dictates the Rate-Distortion trade-off:
 
--   **Low Information Density (High-Fidelity Preservation):** A low `info_density` value results in a high-entropy distribution. This creates a **low-distortion, high-rate channel** that preserves even weak signals from a broad context, essential for creative association and nuanced understanding.
+- **High `info_density` (> 1.0):** Aggressive compression. Creates a high-distortion, low-rate
+  channel essential for filtering noise and focusing on logical signals.
+- **Low `info_density` (< 1.0):** High-fidelity preservation. Creates a low-distortion, high-rate
+  channel essential for creative association and capturing broad context.
 
-**Learning an Optimal Compression Policy**
+**A Lens on Transformer Cognition and Tractable Debugging**
 
-The system's controller is learning a **dynamic, context-dependent compression policy**. For each token, it assesses the cognitive task and computes the optimal `info_density` required. This reframes the scaling laws: performance scales not just with parameter count, but with the **sophistication and diversity of the compression strategies** a model can learn and apply.
-
-**A Lens on Transformer Architecture and Cognition**
-
-Landauer's principle shows how erasing information has an energy cost, but the system reveals the flip side - creating information (through decompression/exploration) also has a cost. KL divergence quantifies the work required to deviate from the system's natural compression equilibrium.
-
-This explains why language models get weird when you push them too far from their training distribution. You're not just asking them to process unfamiliar content - you're forcing them to apply compression policies they never learned to optimize. It's like trying to run JPEG compression on audio data - the algorithm breaks down because it's optimized for fundamentally different signal statistics.
-
-This framework provides a principled physical explanation for transformer design and behavior:
-
--   **Head Specialization:** Heads specialize by finding stable niches in the rate-distortion space. They are not anthropomorphic "agents," but optimized compressors for different signal types.
--   **Architectural Components:** Residual connections act as high-rate "bypass channels" to prevent critical information from being overly compressed. Layer normalization is a gain regulator that ensures the adaptive compression system remains stable.
--   **The Cost of Thought (KL Divergence):** The included KL divergence diagnostic measures the "energetic cost" of deviating from the model's default, learned compression heuristics. A spike in KL indicates the model is applying an effortful, non-standard policy to handle a novel or complex situation.
-
-** Tractable Debugging**
-
-This reframes reasoning failures not as flaws in the model's "knowledge," but as the application of a **suboptimal compression policy**. A model failing a math problem may not lack "math skills," but may have failed to apply the necessary high-density compression to isolate the numbers and operators from the surrounding text. This transforms debugging from an intractable interpretability problem into a more tractable analysis of control system policies. This is the instrumentation for a new science of machine cognition.
+This framework provides a principled physical explanation for transformer design and behavior,
+reframing reasoning failures not as flaws in "knowledge," but as the application of a
+**suboptimal compression policy**. Debugging becomes a more tractable analysis of control
+system policies. The included KL divergence diagnostic measures the "work" done by the
+controller to shift the model from its default state, providing a quantitative look into
+the cost of thought. This is the instrumentation for a new science of machine cognition.
