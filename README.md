@@ -38,11 +38,4 @@ This approach treats each attention head as a variable-rate compression channel,
 - **Low `info_density` (< 1.0):** High-fidelity preservation. Creates a low-distortion, high-rate
   channel essential for creative association and capturing broad context.
 
-**A Lens on Transformer Cognition and Tractable Debugging**
 
-This framework provides a principled physical explanation for transformer design and behavior,
-reframing reasoning failures not as flaws in "knowledge," but as the application of a
-**suboptimal compression policy**. Debugging becomes a more tractable analysis of control
-system policies. The included KL divergence diagnostic measures the "work" done by the
-controller to shift the model from its default state, providing a quantitative look into
-the cost of thought. This is the instrumentation for a new science of machine cognition.
