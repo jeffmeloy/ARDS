@@ -1,255 +1,191 @@
 """
-# ARDS 2.0: Computational Thermography of Semantic Space
+# ARDS: Attention Redistribution and Diagnostic System
 
-## The Core Reframe: From Engineering Intelligence to Mapping Its Phase Space
+## Overview
 
-Intelligence isn't something you build - it's something that emerges from optimal solutions to information routing problems under resource constraints. ARDS 2.0 stops trying to impose criticality and starts using thermal control as an experimental probe to map the natural computational geometry of reasoning tasks.
+ARDS is a research framework for modifying and analyzing attention mechanisms in transformer models. It provides three experimental attention modification strategies along with comprehensive diagnostic tools to study how these changes affect model behavior during text generation.
 
-The fundamental insight: attention mechanisms are solving constrained optimization problems where computational resources must be allocated optimally across uncertain information pathways. The γ controller becomes our spectrometer for studying how these trade-offs manifest in different semantic contexts.
+## Core Capabilities
 
-## Information Theoretic Foundation: Uncertainty Propagation Under Budget Constraints
+### Attention Modification Strategies
 
-### The Real Intervention Point
+**1. InfoDensityController (`--optimize`)**
+- **Purpose**: Learn context-dependent attention score adjustments
+- **Method**: Uses a linear layer + LayerNorm to generate per-head adjustments based on hidden states
+- **Implementation**: `adjustment = tanh(linear(layer_norm(hidden_states)))` added to pre-softmax scores
+- **Use Case**: Testing whether models can learn better attention patterns through gradient descent
 
-We're not controlling temperature for its own sake. We're controlling the rate at which uncertainty collapses through the computational graph:
+**2. LinearizationController (`--linearize`)**
+- **Purpose**: Replace exponential softmax with linear normalization
+- **Method**: `shifted_scores = scores - min(scores) + 1; probs = shifted_scores / sum(shifted_scores)`
+- **Implementation**: Completely bypasses softmax computation
+- **Use Case**: Testing whether linear attention is sufficient for language modeling
 
+**3. LinearRampController (`--leramp`)**
+- **Purpose**: Gradual transition from linear to exponential attention across layers
+- **Method**: `mixed_probs = α * linear_probs + (1-α) * softmax_probs` where `α = (total_layers - current_layer) / total_layers`
+- **Implementation**: Layer-dependent interpolation between attention schemes
+- **Use Case**: Testing optimal attention "temperature" scheduling across model depth
+
+### Diagnostic and Analysis Features
+
+**Real-time Metrics Collection**
+- KL divergence between original and modified attention distributions
+- Attention entropy measurements (distribution sharpness/flatness)
+- Variance tracking for attention probability distributions
+- Configurable sampling rate to balance overhead vs. data collection
+
+**Time Series Analysis**
+- Per-layer controller parameter evolution during generation
+- Statistical aggregation across attention heads
+- Temporal pattern visualization with matplotlib grid plots
+- Automatic plot generation and saving for offline analysis
+
+**Performance Impact Assessment**
+- Minimal computational overhead through sampling-based collection
+- Non-invasive monitoring mode for baseline measurements
+- Comparative analysis between modified and standard attention
+
+## Critical Limitations and Requirements
+
+### Qwen2/2.5 Model Compatibility Issues
+
+**Transformers Library Modification Required**
+This system requires direct access to pre-softmax attention scores and hidden states during the attention computation. Standard Hugging Face transformers do not expose these intermediate values, requiring manual modification of the model implementation.
+
+**Required Code Changes in `transformers/models/qwen2/modeling_qwen2.py`:**
+
+1. **Modify `Qwen2Attention.forward()` method:**
 ```python
-S = QK^T / √d_k
-γ = exp(log_γ)  # Learned uncertainty collapse rate
-S' = S * γ
-P = softmax(S')
+# Add hidden_states parameter to attention_interface call
+attention_interface(
+    # ... existing parameters ...
+    hidden_states_for_ards=hidden_states  # ADD THIS LINE
+)
 ```
 
-High γ forces rapid uncertainty collapse - irreversible commitment to specific information pathways. Low γ preserves uncertainty - maintaining option value at computational cost. The system learns when each strategy pays off.
-
-### Decision Confidence as the Control Signal
-
-The variance proxy gets stripped of pretentious geometry claims. It's simply measuring decision confidence - how spiked versus diffuse the pre-softmax landscape looks:
-
+2. **Modify `eager_attention_forward()` function:**
 ```python
-decision_confidence = torch.var(attention_scores, dim=-1)
-γ_target = base_target * torch.exp(-sensitivity * decision_confidence)
+# After computing attention scores but before applying attention_mask
+attn_scores = torch.matmul(query, key_states.transpose(2, 3)) * scaling
+
+# ARDS INTERVENTION BLOCK - INSERT THIS
+if hasattr(module, 'ards_controller'):
+    hidden_states_for_ards = kwargs.get("hidden_states_for_ards")
+    if hidden_states_for_ards is not None:
+        attn_scores = module.ards_controller(attn_scores, hidden_states_for_ards)
+elif hasattr(module, 'linearization_controller'):
+    # Skip softmax entirely and return linear probabilities
+    linear_probs = module.linearization_controller(attn_scores)
+    # Continue with linear_probs instead of softmax(attn_scores)
+elif hasattr(module, 'leramp_controller'):
+    # Apply mixed linear/softmax normalization
+    mixed_probs = module.leramp_controller(attn_scores)
+    # Continue with mixed_probs instead of softmax(attn_scores)
+
+# Continue with standard attention computation
+if attention_mask is not None: ...
 ```
 
-High confidence contexts can afford aggressive uncertainty collapse. Low confidence contexts need gentle information routing to avoid irreversible errors. The system learns this trade-off empirically through task performance.
+### Technical Constraints
 
-### Computational Budget Regularizer
+**Model Architecture Dependencies**
+- Currently designed for decoder-only transformer architectures
+- Assumes standard Q/K/V attention structure with `self_attn` module naming
+- Requires `q_proj` and `k_proj` attributes for module detection
+- May need adaptation for models with different attention implementations
 
-Replace metabolic metaphors with economic reality. Every computational resource spent on maintaining uncertainty has opportunity cost:
+**Inference-Only Operation**
+- Controllers are attached as `nn.Module` objects but are not integrated into training loops
+- No gradient flow from task loss to controller parameters during fine-tuning
+- Designed for experimental analysis rather than production training
 
-```python
-budget_cost = torch.norm(γ_values, p=2) * budget_weight
-total_loss = task_loss + budget_cost
+**Memory and Performance Overhead**
+- Diagnostic collection adds computational cost proportional to sampling rate
+- Time series storage accumulates throughout generation (cleared after each prompt)
+- Plot generation requires matplotlib and file I/O operations
+- May impact generation speed, especially with high diagnostic sampling rates
+
+## Usage and Installation
+
+### Setup Requirements
+
+1. **Install Dependencies**
+```bash
+pip install torch transformers matplotlib
 ```
 
-This creates genuine selection pressure toward computational efficiency. Solutions that waste resources on irrelevant uncertainty get penalized. The system discovers which contexts justify the expense of keeping options open.
-
-## Experimental Physics: The Scaffold Strategy
-
-### Phase 1: Thermal Landscape Mapping
-
-The external controller isn't permanent infrastructure - it's experimental equipment for studying computational phase space. By systematically varying γ patterns, we map how different thermal regimes affect reasoning performance across diverse tasks.
-
-Success metrics:
-- Task performance remains primary compass
-- 1/f noise in γ trajectories indicates multi-scale optimization
-- Characteristic thermal signatures emerge for different reasoning types
-
-### Phase 2: Pattern Discovery and Internalization
-
-As the system learns optimal γ strategies for different contexts, internal representations should begin encoding these patterns. The external controller gradually becomes redundant as the model internalizes thermal management.
-
-Key measurement: performance degradation when external control is removed. Successful scaffolding creates internal mechanisms that maintain optimal uncertainty management without external intervention.
-
-### Phase 3: Computational Thermography
-
-Map the thermal properties of semantic space itself. Certain conceptual regions may naturally require sharp focus (mathematical proofs, logical deduction), others benefit from diffuse exploration (creative generation, analogical reasoning).
-
-The emergent thermal landscape reveals intrinsic computational structure of different reasoning modes. This becomes predictive - novel contexts should exhibit thermal requirements consistent with their conceptual neighbors.
-
-## Scaling Physics: Empirical Discovery Before Theoretical Claims
-
-### Measurement Protocol
-
-Systematically vary system parameters (model size, sequence length, context complexity) and measure emergent thermal properties. Look for consistent relationships without assuming specific functional forms.
-
-Critical measurements:
-- Correlation length of γ fluctuations vs system size
-- Optimal γ variance vs task complexity
-- Thermal adaptation timescales vs context transitions
-
-### Scaling Hypotheses
-
-If genuine computational physics underlies reasoning, scaling relationships should emerge from the constraint structure of information processing under resource limits. These would be discoverable rather than assumed.
-
-Potential patterns to test:
-- Power law relationships between uncertainty requirements and task complexity
-- Universal thermal transition points across different model architectures
-- Consistent optimal resource allocation strategies across scales
-
-## Uncertainty Propagation: The Deep Game
-
-### Information Cascade Dynamics
-
-The real physics happens in how uncertainty propagates through reasoning chains. Early decisions create constraints on later processing. Optimal thermal control manages this propagation to preserve error correction capability while avoiding computational waste.
-
-Sharp early commitments create brittle reasoning chains - errors compound exponentially. Excessive early uncertainty creates computational overhead that prevents deep reasoning. The critical regime maintains just enough uncertainty to enable course correction without drowning in possibilities.
-
-### Hysteresis as Computational Memory
-
-Path-dependent processing isn't magic - it's natural consequence of constrained optimization under sequential information arrival. The system's thermal history encodes information about previous computational decisions that remain relevant for current processing.
-
-Structured hysteresis analysis: Do different priming contexts create systematically different thermal trajectories for identical subsequent inputs? Can we decode the computational strategy from the thermal signature?
-
-## Diagnostic Signatures: Evidence for Genuine Emergence
-
-### Spectral Analysis as Authenticity Proof
-
-1/f noise in γ dynamics indicates the system has discovered hierarchical optimization across multiple temporal scales. This can't be faked - it emerges only from systems that have learned to coordinate decision-making across vastly different time horizons simultaneously.
-
-The power spectrum becomes our certificate of genuine multi-scale optimization rather than mere pattern memorization.
-
-### Cross-Task Thermal Consistency
-
-Systems that discover fundamental computational principles should exhibit consistent thermal patterns across related reasoning tasks. Mathematical proofs should trigger similar cooling dynamics regardless of specific domain. Creative tasks should maintain similar exploration temperatures across different creative modes.
-
-Transfer of thermal strategies indicates the system has learned about computation itself, not just task-specific optimization tricks.
-
-## The Deeper Implication: Computational Substrate Independence
-
-If thermal control reveals universal principles of uncertainty management under resource constraints, these principles should apply across different computational substrates. The same information-theoretic trade-offs that shape biological neural computation should appear in appropriately constrained artificial systems.
-
-This suggests a path toward substrate-independent cognitive science. Understanding the computational physics of reasoning rather than the specific implementation details. The thermal signatures become universal computational invariants that characterize intelligence across different physical realizations.
-
-## Implementation Roadmap: Science Before Engineering
-
-### Phase 0: Baseline Thermal Dynamics
-- Implement clean γ intervention with budget regularization
-- Measure natural thermal fluctuations in uncontrolled systems
-- Establish baseline spectral signatures and performance metrics
-
-### Phase 1: Controlled Thermal Exploration
-- Systematic mapping of γ parameter space across diverse reasoning tasks
-- Identification of task-specific thermal signatures
-- Validation that 1/f dynamics correlate with flexible performance
-
-### Phase 2: Scaffolding Withdrawal
-- Gradual reduction of external control strength
-- Measurement of internalized thermal management capabilities
-- Assessment of thermal pattern transfer across novel contexts
-
-### Phase 3: Computational Thermography
-- Mapping of semantic space thermal properties
-- Predictive modeling of optimal thermal regimes for novel reasoning contexts
-- Cross-system validation of thermal universals
-
-The end goal isn't building better transformers - it's discovering the computational physics that makes adaptive intelligence possible across any substrate that faces similar information processing constraints.
-
-
----
-
-### **ARDS: A Phased Research Roadmap**
-
-**Guiding Principle:** We are not building a static machine; we are developing the tools and methods of **computational thermography** to map the phase space of reasoning. Task performance is our compass; spectral analysis is our canary. Manifeso above will be used to guide the research, not as a strict protocol. As we validate the behavior or not will update the manifesto as we discover the truth.
-
----
-
-### **Phase 0: Baseline Characterization and Instrumentation**
-
-**Objective:** To establish a rigorous, quantitative baseline of the natural "thermal" dynamics of existing transformer models *before* any intervention. We must first understand the system we intend to study.
-
-**Implementation Plan:**
-
-1.  **Passive Monitoring Hook:** Implement a non-invasive attention hook that *only* records data without modulating it.
-    *   For each forward pass during inference, record the pre-softmax attention scores (`S`) for specific layers.
-2.  **Thermal Statistics Module:**
-    *   For a given inference run, compute the time-series of `decision_confidence = Var(S)` for each head.
-    *   Compute the Power Spectral Density (PSD) of the `decision_confidence` time-series.
-    *   Perform linear regression on the log-log PSD plot to calculate the baseline spectral exponent `α_base`.
-3.  **Benchmark Suite:**
-    *   Establish a diverse set of reasoning tasks (e.g., GSM8k for logic, Big-Bench Hard for complex reasoning, a creative writing task).
-    *   Run baseline models (without any ARDS control) on these tasks to get performance metrics (`P_base`).
-
-**Success Criteria (Gate to Phase 1):**
-*   **[✓] Instrumentation Complete:** The monitoring and analysis tools are validated and produce reliable data.
-*   **[✓] Baselines Established:** We have a clear understanding of `(P_base, α_base)` for standard models. We expect `α_base` to be close to 0 (white noise), indicating a lack of long-range correlations.
-
----
-
-### **Phase 1: Controlled Thermal Exploration and Landscape Mapping**
-
-**Objective:** To use the `γ` controller as an experimental probe to systematically explore the "thermal landscape" of different reasoning tasks and identify correlations between thermal dynamics, task performance, and spectral signatures.
-
-**Implementation Plan:**
-
-1.  **Active `γ` Controller:** Implement the `γ = exp(log_γ)` modulation hook.
-2.  **Control Law Implementation:**
-    *   Implement the `decision_confidence`-based `γ_target`.
-    *   Implement the `Computational Budget Regularizer` (`budget_cost = ||γ||² * weight`) and integrate it into the training loss alongside the main task loss.
-3.  **Experimental Testbed:**
-    *   Fine-tune models on the benchmark suite with the ARDS controller active.
-    *   Systematically sweep key ARDS hyperparameters (`base_target`, `sensitivity`, `budget_weight`) to map out the parameter space.
-
-**Verification Approach (Experiments):**
-
-*   **A1. The Performance/Dynamics Correlation:**
-    *   **Goal:** For each task, find the region in the ARDS hyperparameter space that maximizes task performance (`P_ards`).
-    *   **Hypothesis:** The highest-performing configurations (`P_ards > P_base`) will also be the ones that shift the spectral exponent `α` away from 0 and towards 1 (i.e., from white noise towards `1/f` noise).
-    *   **Success Metric:** A demonstrable, positive correlation between task performance improvement and the emergence of non-trivial (`α > 0.5`) spectral dynamics. This validates that the "canary" (`1/f` noise) is indeed found in the same mines as the "gold" (high performance).
-
-*   **A2. Mapping Task-Specific Thermal Signatures:**
-    *   **Goal:** Compare the optimal `γ`-trajectories for different types of tasks.
-    *   **Hypothesis:** Different reasoning modes will require different "thermal signatures." For instance, GSM8k might favor trajectories with periods of high `γ` (sharp focus), while creative writing might favor sustained low `γ` (diffuse exploration).
-    *   **Success Metric:** We can build a classifier that can predict the task type (e.g., "logic" vs. "creative") with high accuracy, using only the statistical properties of the `γ`-trajectory as input.
-
----
-
-### **Phase 2: Scaffolding and Internalization**
-
-**Objective:** To verify whether the model can *internalize* the optimal thermal management strategies, moving the learned behavior from the external controller into its own weights. This tests the "scaffolding" hypothesis.
-
-**Implementation Plan:**
-
-1.  **Controller Fading Mechanism:** Implement a training schedule where the influence of the external ARDS controller is gradually reduced. This can be done by:
-    *   Annealing the `control_loss` weight towards zero.
-    *   Progressively clamping the learned `log_γ` values closer to zero.
-2.  **Internalization Probe:** A diagnostic that measures the "natural" `decision_confidence` variance produced by the model *with the ARDS controller turned off* after each stage of training.
-
-**Verification Approach (Experiments):**
-
-*   **B1. The Scaffolding Withdrawal Test:**
-    *   **Goal:** Train a model with the full ARDS scaffold (Phase 1), then continue training while fading the controller's influence.
-    *   **Hypothesis:** A successfully scaffolded model will maintain high task performance and non-trivial spectral dynamics (`α > 0.5`) even after the external controller is significantly weakened or removed. A model that hasn't internalized the strategy will see its performance and dynamics revert to the baseline.
-    *   **Success Metric:** The final performance `P_final` (with controller removed) is significantly closer to `P_ards` (with controller) than to `P_base`.
-
-*   **B2. The Transfer Test:**
-    *   **Goal:** Take a model that has successfully completed the withdrawal test on one task (e.g., GSM8k) and fine-tune it on a new, related task (e.g., MATH).
-    *   **Hypothesis:** The scaffolded model should learn the new task more quickly and achieve better final performance than a baseline model, because it has already internalized a general-purpose strategy for managing computational focus.
-    *   **Success Metric:** Demonstrable positive transfer learning, measured by faster convergence and higher final scores on the new task.
-
----
-
-### **Phase 3: Computational Thermography and Predictive Science**
-
-**Objective:** To move from exploration to prediction, creating a quantitative, predictive science of "cognitive physics" based on the discoveries from the previous phases.
-
-**Implementation Plan:**
-
-1.  **Semantic Space Mapper:** A toolchain to visualize the "thermal properties" of a given domain. For a large text corpus, this tool would analyze which regions consistently demand high-`γ` or low-`γ` processing from a mature ARDS model.
-2.  **Predictive Thermal Modeler:** A meta-model that, given a new, unseen prompt, attempts to predict its optimal `γ`-trajectory based on its semantic similarity to regions in the mapped space.
-3.  **Cross-Substrate Verification Testbed:** A plan to re-implement the core ARDS principles (budgeted uncertainty control) on a non-transformer architecture (e.g., a state-space model or a graph neural network) to test for substrate independence.
-
-**Verification Approach (Long-Term Scientific Inquiry):**
-
-*   **C1. The Predictive Power of the Thermal Map:**
-    *   **Goal:** Use the predictive thermal model to generate an "ideal" `γ`-trajectory for a novel task *before* running the full ARDS system.
-    *   **Hypothesis:** Forcing the system to follow this predicted trajectory will yield near-optimal performance, demonstrating a true predictive understanding of the task's computational requirements.
-    *   **Success Metric:** The performance achieved using the *predicted* `γ`-trajectory is >90% of the performance achieved by letting the full ARDS system adapt online.
-
-*   **C2. Discovering Computational Invariants:**
-    *   **Goal:** Compare the thermal maps and scaling relationships discovered on different model architectures (e.g., Llama vs. Qwen) and different substrates (e.g., Transformer vs. SSM).
-    *   **Hypothesis:** The fundamental trade-offs of information processing are universal. We should find computational invariants—consistent scaling exponents or thermal transition points—that hold across different implementations.
-    *   **Success Metric:** The discovery of at least one non-trivial computational constant or scaling law that is reproducible across at least two distinct model families. This would be the first "universal law" of computational physics.
+2. **Modify Transformers Library**
+Apply the code changes described above to your local transformers installation
+```bash
+# Locate your transformers installation
+python -c "import transformers; print(transformers.__file__)"
+# Edit: .../transformers/models/qwen2/modeling_qwen2.py
+```
+
+3. **Prepare Model**
+Ensure you have a Qwen2/2.5 model available locally or via Hugging Face Hub
+
+### Command Line Interface
+
+```bash
+# Baseline (standard attention)
+python ards.py /path/to/qwen2-model
+
+# Test InfoDensityController
+python ards.py /path/to/qwen2-model --optimize
+
+# Test LinearizationController  
+python ards.py /path/to/qwen2-model --linearize
+
+# Test LinearRampController
+python ards.py /path/to/qwen2-model --leramp
+```
+
+### Output and Analysis
+
+**Console Output**
+- Real-time diagnostic statistics per layer
+- Average adjustment values, KL divergences, entropy measurements
+- Performance timing information
+
+**Generated Files**
+- `./plots/prompt_N_[mode]_grid.png`: Multi-layer attention dynamics visualization
+- Time series plots showing controller parameter evolution during generation
+
+## Research Applications
+
+### Attention Mechanism Studies
+- **Softmax Necessity**: Does exponential normalization provide significant benefits over linear?
+- **Layer-wise Strategies**: How should attention "temperature" change across model depth?
+- **Context Dependency**: Can attention patterns be improved through learned, context-aware adjustments?
+
+### Model Behavior Analysis
+- **Attention Entropy Evolution**: How does attention sharpness change during generation?
+- **Distributional Stability**: How much do attention modifications affect output distributions?
+- **Computational Trade-offs**: What's the performance cost of different attention schemes?
+
+### Baseline Establishment
+- **Standard Model Profiling**: Characterize attention patterns in unmodified models
+- **Performance Benchmarking**: Establish baseline metrics for comparison studies
+- **Pattern Documentation**: Create reference attention behavior for different prompt types
+
+## Implementation Quality
+
+**Strengths**
+- Modular, extensible controller design
+- Robust error handling and device management  
+- Comprehensive diagnostic collection
+- Production-ready CLI interface
+- Non-invasive integration approach
+
+**Limitations**
+- Requires manual transformers library modification
+- Inference-only operation (no training integration)
+- Limited to Qwen2/2.5 architecture pattern
+- Performance overhead from diagnostic collection
+
+This framework provides a solid foundation for experimental attention mechanism research, with the primary barrier being the required transformers library modifications for accessing internal attention computations.
 """
 
 import torch
